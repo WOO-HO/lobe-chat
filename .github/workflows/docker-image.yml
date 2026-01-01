@@ -1,0 +1,53 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ "next" ]
+  pull_request:
+    branches: [ "next" ]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository_owner }}/lobe-chat-clerk
+
+jobs:
+
+  build:
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }} # 自动检出触发当前流程的分支
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable=${{ github.ref_name == 'main' }}
+            type=raw,value=next,enable=${{ github.ref_name == 'next' }}
+            type=ref,event=branch
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ id.meta.outputs.tags }}
+          labels: ${{ id.meta.outputs.labels }}
+          build-args: |
+            NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${{ vars.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
